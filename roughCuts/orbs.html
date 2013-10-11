@@ -1,0 +1,388 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+</head>
+<body id='mainHolder' onresize=resizeCanvas()>
+   <script>
+      var numArcs = 5; // how many lines to draw
+      var speed = 0.4; // how fast should the lines animate
+      var canvas1; // canvas jquery object we're drawing to
+      var canvas2;
+      var canvasArr = [];
+      var ctx1; // canvas drawing context
+      var ctx2;
+      var w = 800;
+      var h = 800;
+      var haze=0;
+      var reincarnate = true;
+      var animCallBack;
+      var mouseAvailable = false;
+      var mouseX;
+      var mouseY;
+      
+      //Runtime Params.
+      var showVector = false;
+      var CollisionDetect = true;
+      var CollisionAvoid = false;
+      var mouseInteraction = false;
+      var circleOfLife = true;
+
+
+// Fires when the page first loads
+window.onload = function() {
+
+    window.onmouseover = function() {reincarnate=true;mouseAvailable=true;};
+    window.onmouseout = function() {reincarnate=false;mouseAvailable=false;};
+    document.getElementById('mainHolder').onmousemove = function(event){mouseX=event.x;mouseY=event.y;};
+    initialize("myCanvas1");
+    initialize("myCanvas2");
+    canvasArr[0].canvas.style.webkitFilter = "blur("+4+"px)";
+    //canvasArr[1].canvas.style.webkitFilter = "blur("+2+"px)";
+    animCallBack = animationCallBackDetect();
+    //for(var x=0;x < canvasArr.length;x++)
+    //{
+    //  animate_canvas(canvasArr[x]);
+    //}
+    animate_canvas();
+    
+}
+
+var resizeCanvas = function(){
+  var canvasObj;
+  for(var x=0;x<canvasArr.length;x++)
+  {
+    canvasObj = canvasArr[x];
+    canvasObj.canvas.height = window.innerHeight - 30;
+    canvasObj.canvas.width = window.innerWidth - 30;
+    h = canvasObj.canvas.height;
+    w = canvasObj.canvas.width;
+  }
+
+};
+
+var makeArc = function(MaxLife,bounds) {
+  var arcX = Math.random() * w;
+  var arcY = Math.random() * h;
+  var arcRad = Math.random() * (h/10);
+  var arcDamping = Math.random() * 10;
+  var arcColor = {r : Math.round(255*Math.random()),
+                  g : Math.round(255*Math.random()),
+                  b : Math.round(255*Math.random()),
+                  a : 0
+                  };
+  var arcLife = MaxLife;
+  var arcInertiaX = Math.random()*2;
+  var arcinertiaY = Math.random()*2;
+ 
+  var arc = {
+         x : arcX,
+         xd : 1,
+         y : arcY,
+         yd : (Math.random() > .5)? 1 : -1,
+         //zd : (Math.random() > .5)? 1 : -1,
+         zd : 0,
+         radius : arcRad,
+         inertiaX : (1-(arcRad/(h/10)))*0.1,
+         inertiaY : (1-(arcRad/(w/10)))*0.1,
+         inertiaZ : Math.random()*.1,
+         arcDamp : 2,
+         startDelay : (1200*Math.random()),
+         color : arcColor,
+         lifeSpan : arcLife,
+         lifeShell : arcLife,
+         pointerAffinity : (arcRad/h)*.1
+         };
+   //if(Math.random() > 0.5)
+   // arc.pointerAffinity *= -1;
+   return arc;
+};
+        
+var initialize = function(canvasID) {
+    var canvasRef,context,arcArrays;
+    arcArrays = [];
+    canvasRef = document.getElementById(canvasID);
+    resizeCanvas();
+    context = canvasRef.getContext("2d");
+    for ( var x=0; x < numArcs; x++ ) {
+        arcArrays.push (makeArc(600+(Math.random()*150)));
+    }
+    canvasArr.push({canvas : canvasRef, ctx : context, arcs : arcArrays,rotate: Math.random()*180});
+};
+var animationCallBackDetect = function(callback)
+{
+  var win = window;
+  if(win.requestAnimationFrame)
+    return win.requestAnimationFrame;
+  else if (win.webkitRequestAnimationFrame)
+    return win.webkitRequestAnimationFrame;
+  else if(win.mozRequestAnimationFrame)
+    return win.mozRequestAnimationFrame;
+  else if(win.oRequestAnimationFrame)
+    return win.oRequestAnimationFrame;
+  else if(win.msRequestAnimationFrame)
+    return win.msRequestAnimationFrame;
+  else
+  {
+    var homeCookedAnimator=function(callbackFun){
+      window.setTimeout(callbackFun,16.67);
+    }
+    return homeCookedAnimator;
+  }
+} 
+var animate_canvas = function()
+ {
+    for(var x=0;x<canvasArr.length;x++)
+    {
+      var ctx=canvasArr[x].ctx;
+      var arcs=canvasArr[x].arcs;
+      if(canvasArr[x].rotate>359)
+        canvasArr[x].rotate = 0;
+      else
+        canvasArr[x].rotate++;
+      animate(ctx,arcs);
+    }
+    //have the browser run this animation just before each screen refresh
+    animCallBack(animate_canvas);
+ };
+
+
+var animate  = function(ctx,arcs) {
+    
+    // clear the screen from the previous step of the animation
+    ctx.clearRect(0, 0, w,h);
+    var strokeS;
+    var fillS;
+
+    // process each line in our array
+    for ( var x=0; x<arcs.length; x++ ) {
+        arc = arcs[x];
+        if(arc.startDelay < 0)
+        {
+          
+          arc.lifeSpan--;
+          if(arc.inertiaX+arc.inertiaY > 1)
+          {
+            if(circleOfLife) 
+              arc.lifeSpan--;
+            if(arc.intertiaX > 0.5)
+              arc.inertiaX-=(arc.inertiaX/(arc.intertiaX-0.5));
+            if(arc.inertiaY > 0.5)
+              arc.inertiaY-=(arc.inertiaY/(arc.inertiaY-0.5));
+          }
+          if(arc.lifeSpan/arc.lifeShell < .5)
+          {  
+            arc.color.a = arc.lifeSpan / arc.lifeShell;
+            if(!circleOfLife)
+              arc.lifeSpan++;
+    
+          }
+          else
+            arc.color.a = 1 - arc.lifeSpan / arc.lifeShell;
+            
+          arc.radius += arc.inertiaZ*arc.zd;
+          if(arc.radius<10)
+          {
+              arc.radius=10;
+              if(arc.zd < 0) //Grow if set to shrink
+                arc.zd = -arc.zd; 
+          }
+          else if(arc.radius>(h/10))
+          {
+              arc.radius=(h/10);
+              if(arc.zd >0)
+                 arc.zd = -arc.zd;
+          }
+          
+          if(arc.color.r > 255)
+           arc.color.r = 255;
+          if(arc.color.g > 255)
+           arc.color.g = 255;
+          if(arc.color.b > 255)
+           arc.color.b = 255;
+          
+          if(arc.color.r < 0)
+           arc.color.r = 0;
+          if(arc.color.g < 0)
+           arc.color.g = 0;
+          if(arc.color.b < 0)
+           arc.color.b = 0;
+           
+          if(arc.x + arc.radius >= w || (arc.x - arc.radius) <= 0)
+          {
+              arc.xd = -arc.xd;
+              if(arc.x + arc.radius > w)
+                 arc.x = (w - arc.radius);
+              else if(arc.x - arc.radius < 0)
+                 arc.x = arc.radius;
+               
+          }
+          strokeS = "rgba(" + arc.color.r + "," + arc.color.g + "," + arc.color.b + "," + arc.color.a + ")";
+          fillS = strokeS;
+          if(mouseInteraction && mouseAvailable){
+            //console.log("ArcMovement : " + (arc.x - mouseX)*arc.pointerAffinity*arc.xd + " , " 
+            //  + (arc.y - mouseY)*arc.pointerAffinity*arc.yd );
+            var xoffset = mouseX - arc.x;
+            var yoffset = mouseY - arc.y;
+            var hyp = Math.sqrt(Math.pow(xoffset,2) + Math.pow(yoffset,2));
+            var xpull=(w-Math.abs(xoffset))/w;
+            var ypull=(h-Math.abs(yoffset))/h;
+
+
+            arc.inertiaX += xpull*(xoffset/hyp)*arc.pointerAffinity*arc.xd;
+            
+            if(arc.inertiaX <= 0.01)
+            {
+              arc.xd = -arc.xd;
+              arc.inertiaX = 0.11;
+            }
+
+            arc.inertiaY += ypull*(yoffset/hyp)*arc.pointerAffinity*arc.yd;
+            if(arc.inertiaY <= 0.01)
+            {
+              arc.yd = -arc.yd;
+              arc.inertiaY = 0.011;
+            }
+
+          }
+          //detect Collisions and transfer energy
+          if(CollisionDetect)
+          {
+            for(var i=0;i<arcs.length;i++)
+            {
+              if(i==x)
+                continue;
+              var xdist = arc.x - arcs[i].x;
+              var ydist = arc.y - arcs[i].y;
+              var hyp = arc.radius + arcs[i].radius;
+              var actHyp = Math.sqrt(Math.pow(xdist,2) + Math.pow(ydist,2));
+              if(hyp>=actHyp)
+              {
+                //collision!
+                if(CollisionAvoid)
+                {
+                  var tmp;
+                  tmp=arc.intertiaX;
+                  arc.intertiaX -= Math.abs(xdist/actHyp)*arcs[i].intertiaX*(arcs[i].radius/10);
+                  if(arc.intertiaX < 0)
+                  {
+                    arc.intertiaX = Math.abs(arc.intertiaX)
+                    arc.xd *= -1;
+                  }
+                  arcs[i].intertiax -= Math.abs(ydist/actHyp)*tmp*(arc.radius/10);
+                  if(arcs[i].intertiaX < 0)
+                  {
+                    arcs[i].intertiaX = Math.abs(arcs[i].inertiaX);
+                    arcs[i].xd *= -1;
+                  }
+                  tmp = arc.inertiaY;
+                  arc.inertiaY -= Math.abs(ydist/actHyp)*arcs[i].inertiaY*(arcs[i].radius/10);
+                  if(arc.inertiaY < 0)
+                  {
+                    arc.inertiaY = Math.abs(arc.inertiaY);
+                    arc.yd *= -1;
+                  }
+                  arcs[i].inertiaY -= Math.abs(xdist/actHyp)*tmp*(arc.radius/10);
+                  if(arcs[i].intertiaY<0)
+                  {
+                    arcs[i].intertiaY = Math.abs(arcs[i].intertiaY);
+                    arcs[i].yd *= -1;
+                  }
+                
+                  //tmp=arc.xd
+                  //arc.xd = arcs[i].yd;
+                  //arcs[i].yd = tmp;
+                  //tmp = arc.yd;
+                  //arc.yd = arcs[i].xd;
+                  //arcs[i].xd = tmp;
+                  while(hyp>actHyp)
+                  {
+                    arc.x += 1 * arc.xd * arc.inertiaX;
+                    arc.y += 1 * arc.yd * arc.inertiaY;
+                    xdist = arc.x - arcs[i].x;
+                    ydist = arc.y - arcs[i].y;
+                    hyp = arc.radius + arcs[i].radius;
+                    actHyp = Math.sqrt(Math.pow(xdist,2) + Math.pow(ydist,2));
+
+                  }
+                  i=0;
+                }
+                else{
+                  //simply highlight the collision
+                  strokeS = "rgba(255,0,0,"+arc.color.a+")";
+                }
+              }
+            }
+          }
+          arc.x += 1 * arc.xd * arc.inertiaX;
+          arc.y += 1 * arc.yd * arc.inertiaY;
+          if(arc.y + arc.radius >= h || arc.y - arc.radius <= 0)
+          {
+              arc.yd = -arc.yd;
+                //if(arc.inertiaY > 0)
+                //  arc.inertiaY -= (arc.inertiaY > arc.arcDamp)? arc.arcDamp : (arc.inertiaY - 1);
+              if(arc.y + arc.radius >h)
+                 arc.y = h - arc.radius;
+              else if(arc.y - arc.radius < 0)
+                 arc.y = arc.radius;
+                
+          }
+          // draw the line in it's existing position
+          ctx.beginPath();
+          ctx.lineWidth = .8;
+          ctx.strokeStyle = strokeS;
+          ctx.fillStyle = fillS;
+          ctx.arc( arc.x, arc.y, arc.radius, 0, 2*Math.PI, arc.dir);
+          //arc.rotation += Math.random() * 1;
+          ctx.fill();
+          ctx.stroke();
+          ctx.closePath();
+          
+          if(showVector)
+          {
+            ctx.beginPath();
+            ctx.strokeStyle="rgba(255,0,0,0.7)";
+            ctx.moveTo(arc.x,arc.y);
+            ctx.lineTo(arc.x+(arc.inertiaX*1000*arc.xd), arc.y+(arc.inertiaY*1000*arc.yd));
+            ctx.closePath();
+            ctx.stroke();
+          }
+
+
+      }
+      else
+        arc.startDelay--;
+    }  
+    //Relocate dead arcs to a new random Position, if reincarnation is true.
+    if(reincarnate){
+      for (var y=0; y<arcs.length; y++) {
+        var arc = arcs[y];
+        if(arc.lifeSpan <= 0)
+        {
+           var colorSwapTmp;
+           arc.x = Math.random() * w;
+           arc.xd = 1;
+           arc.y = Math.random() * h;
+           arc.yd = (Math.random() > 0.5)? 1 : -1;
+           arc.zd = (Math.random() > 0.5)? 1 : -1;
+           arc.radius = 10 + ((Math.random()*(h/10)) - 10);
+           arc.color = {r : Math.round(255*Math.random()),
+                        g : Math.round(255*Math.random()),
+                        b : Math.round(255*Math.random()),
+                        a : 0
+                        };
+           arc.startDelay = (300*Math.random());
+           arc.lifeSpan = arc.lifeShell; //avoid One big recalculation.
+        }
+      }
+    }
+    
+};
+
+</script>  
+   <canvas id="myCanvas1" width="800" height="800" style="border:0px;position:fixed;left:0px;top:0px;z-index:1;z-index:-1;">
+   </canvas>
+   <canvas id="myCanvas2" width="800" height="800" style="border:0px;position:fixed;left:0px;top:0px;z-index:0;">
+   </canvas>
+</body>
+</html>
+   
